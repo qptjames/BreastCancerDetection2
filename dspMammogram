@@ -1,0 +1,164 @@
+import os
+import cv2
+import numpy as np
+from sklearn.model_selection import train_test_split
+import matplotlib.pylab as plt
+import seaborn as sns
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPool2D, Activation, Flatten, Dense, Dropout, GlobalAveragePooling2D,BatchNormalization
+from tensorflow.keras.optimizers import Adam
+from keras.utils.np_utils import to_categorical
+from keras.applications import DenseNet201
+
+
+
+data_dir = "/Users/shreeyakodali/Mini_DDSM_Upload"
+
+img_size = (224, 224)
+gray = False
+
+def plotLearningCurve(history,epochs):
+  epochRange = range(1,epochs+1)
+  plt.plot(epochRange,history.history['accuracy'])
+  plt.plot(epochRange,history.history['val_accuracy'])
+  plt.title('Model Accuracy')
+  plt.xlabel('Epoch')
+  plt.ylabel('Accuracy')
+  plt.legend(['Train','Validation'],loc='upper left')
+  plt.show()
+
+  plt.plot(epochRange,history.history['loss'])
+  plt.plot(epochRange,history.history['val_loss'])
+  plt.title('Model Loss')
+  plt.xlabel('Epoch')
+  plt.ylabel('Loss')
+  plt.legend(['Train','Validation'],loc='upper left')
+  plt.show()
+
+
+def load_images():
+    images = []
+    labels = []
+    classes = ["normal","benign","cancer"]
+    for i, c in enumerate(classes):
+        class_dir = os.path.join(data_dir, c)
+        for img_name in os.listdir(class_dir):
+            img_path = os.path.join(class_dir, img_name)
+            img = cv2.imread(img_path)
+            if gray:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.resize(img, img_size)
+            images.append(img)
+            labels.append(i)
+    return np.array(images), np.array(labels)
+
+# Load the images and labels
+images, labels = load_images()
+print("load images complete")
+
+labels = to_categorical(labels,num_classes = 3)
+print("one-hot encoding complete")
+
+# Split the dataset into train, validation, and test sets
+train_images, val_images, train_labels, val_labels = train_test_split(images, labels, test_size=0.2, random_state=42)
+val_images, test_images, val_labels, test_labels = train_test_split(val_images, val_labels, test_size=0.5, random_state=42)
+
+# Normalize the pixel values
+train_images = train_images.astype("float32") / 255.
+val_images = val_images.astype("float32") / 255.
+test_images = test_images.astype("float32") / 255.
+
+# Save the preprocessed data
+np.save("train_images.npy", train_images)
+np.save("train_labels.npy", train_labels)
+np.save("val_images.npy", val_images)
+np.save("val_labels.npy", val_labels)
+np.save("test_images.npy", test_images)
+np.save("test_labels.npy", test_labels)
+
+#print(labels[4000])
+#print(labels[-1])
+#plt.title("Distribution of target classes")
+#plt.bar((range(3), labels))
+#sns.countplot(x=labels) 
+#plt.show()
+
+# Load the preprocessed data
+train_images = np.load("train_images.npy")
+train_labels = np.load("train_labels.npy")
+val_images = np.load("val_images.npy")
+val_labels = np.load("val_labels.npy")
+test_images = np.load("test_images.npy")
+test_labels = np.load("test_labels.npy")
+print("Done loading data")
+
+modelSimple = Sequential()
+modelSimple.add(Conv2D(64, (3, 3), padding='valid', strides=(1, 1),input_shape=(224,224,3)))
+modelSimple.add(Activation('relu'))
+modelSimple.add(MaxPool2D(pool_size=(2, 2)))
+modelSimple.add(Conv2D(64, (3, 3), padding='valid', strides=(1, 1)))
+modelSimple.add(Activation('relu'))
+modelSimple.add(MaxPool2D(pool_size=(2, 2)))
+modelSimple.add(Dropout(0.25))
+modelSimple.add(Flatten())
+modelSimple.add(Dense(3))
+modelSimple.add(Activation('sigmoid'))
+
+modelSimple.compile(optimizer=Adam(learning_rate=0.0001),
+              loss="categorical_crossentropy",
+              metrics=["accuracy"])
+print("Done compiling model")
+
+modelSimple.summary()
+
+history1 = modelSimple.fit(train_images, train_labels,
+                    epochs=10,
+                    batch_size=32,
+                    validation_data=(val_images, val_labels))
+
+test_loss, test_acc = modelSimple.evaluate(test_images, test_labels)
+print("Test loss:", test_loss)
+print("Test accuracy:", test_acc)
+
+plotLearningCurve(history1,10)
+
+
+
+resnet = DenseNet201(
+    weights = 'imagenet',
+    include_top = False,
+    input_shape=(224,224,3)
+)
+
+# Define the model architecture
+model = Sequential()
+model.add(resnet)
+model.add(GlobalAveragePooling2D())
+model.add(Dropout(0.5))
+model.add(BatchNormalization())
+model.add(Dense(3, activation="softmax"))
+
+print("Done defining model")
+
+# Compile the model
+model.compile(optimizer=Adam(learning_rate=0.0001),
+              loss="categorical_crossentropy",
+              metrics=["accuracy"])
+print("Done compiling model")
+model.summary()
+
+# Train the model
+#train_images = np.reshape(train_images.shape[0],train_images.shape[1],train_images.shape[2],1)
+#print(train_images.shape)
+history = model.fit(train_images, train_labels,
+                    epochs=10,
+                    batch_size=32,
+                    validation_data=(val_images, val_labels))
+print("Done training model")
+
+# Evaluate the model on the test set
+test_loss, test_acc = model.evaluate(test_images, test_labels)
+print("Test loss:", test_loss)
+print("Test accuracy:", test_acc)
+
+plotLearningCurve(history,10)
