@@ -12,11 +12,14 @@ from keras.applications import DenseNet201
 
 
 
-data_dir = "/Users/shreeyakodali/Mini_DDSM_Upload"
+# set path to the directory containing image data
+data_dir = "/Users/qptja/Desktop/archive/Mini_DDSM_Upload"
 
+# set the desired image size and whether to use grayscale images
 img_size = (224, 224)
 gray = False
 
+# define a function to plot the model's learning curve
 def plotLearningCurve(history,epochs):
   epochRange = range(1,epochs+1)
   plt.plot(epochRange,history.history['accuracy'])
@@ -35,7 +38,7 @@ def plotLearningCurve(history,epochs):
   plt.legend(['Train','Validation'],loc='upper left')
   plt.show()
 
-
+# define a function to load the images and labels
 def load_images():
     images = []
     labels = []
@@ -56,6 +59,7 @@ def load_images():
 images, labels = load_images()
 print("load images complete")
 
+# convert the labels to one-hot encoding
 labels = to_categorical(labels,num_classes = 3)
 print("one-hot encoding complete")
 
@@ -76,12 +80,6 @@ np.save("val_labels.npy", val_labels)
 np.save("test_images.npy", test_images)
 np.save("test_labels.npy", test_labels)
 
-#print(labels[4000])
-#print(labels[-1])
-#plt.title("Distribution of target classes")
-#plt.bar((range(3), labels))
-#sns.countplot(x=labels) 
-#plt.show()
 
 # Load the preprocessed data
 train_images = np.load("train_images.npy")
@@ -92,6 +90,7 @@ test_images = np.load("test_images.npy")
 test_labels = np.load("test_labels.npy")
 print("Done loading data")
 
+# define CNN architecture
 modelSimple = Sequential()
 modelSimple.add(Conv2D(64, (3, 3), padding='valid', strides=(1, 1),input_shape=(224,224,3)))
 modelSimple.add(Activation('relu'))
@@ -104,6 +103,7 @@ modelSimple.add(Flatten())
 modelSimple.add(Dense(3))
 modelSimple.add(Activation('sigmoid'))
 
+# compile the model with the Adam optimizer, categorical crossentropy loss function, and accuracy metric
 modelSimple.compile(optimizer=Adam(learning_rate=0.0001),
               loss="categorical_crossentropy",
               metrics=["accuracy"])
@@ -111,6 +111,7 @@ print("Done compiling model")
 
 modelSimple.summary()
 
+# train the model using the training data, validate on the validation data, and evaluate on the test data
 history1 = modelSimple.fit(train_images, train_labels,
                     epochs=10,
                     batch_size=32,
@@ -123,7 +124,7 @@ print("Test accuracy:", test_acc)
 plotLearningCurve(history1,10)
 
 
-
+# pre-trained DenseNet201 model
 resnet = DenseNet201(
     weights = 'imagenet',
     include_top = False,
@@ -148,8 +149,6 @@ print("Done compiling model")
 model.summary()
 
 # Train the model
-#train_images = np.reshape(train_images.shape[0],train_images.shape[1],train_images.shape[2],1)
-#print(train_images.shape)
 history = model.fit(train_images, train_labels,
                     epochs=10,
                     batch_size=32,
